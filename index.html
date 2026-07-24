@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- Самое важное: без этой строки на телефоне будет "мини-компьютер" -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подбор аромата</title>
+    <style>
+        /* --- БАЗА --- */
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+
+        /* --- ФОРМА --- */
+        .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .filter-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+        .filter-group input, .filter-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        
+        .action-buttons { display: flex; gap: 15px; margin-bottom: 30px; }
+        button { flex: 1; padding: 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; transition: opacity 0.2s; }
+        button:active { opacity: 0.9; }
+        .btn-search { background-color: #27ae60; color: white; }
+        .btn-reset { background-color: #95a5a6; color: white; }
+
+        /* --- КАРТОЧКА (ДЕСКТОП) --- */
+        .perfume-card {
+            display: flex;
+            align-items: flex-start; /* Картинка сверху-слева, текст рядом */
+            gap: 25px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            background: #fff;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+        .card-img-wrapper {
+            flex: 0 0 160px; /* Фиксированная ширина картинки */
+            height: 160px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card-img { width: 100%; height: 100%; object-fit: contain; }
+        .perfume-info { flex-grow: 1; min-width: 0; } /* min-width:0 разрешает обрезку текста */
+        .perfume-info h3 { margin: 0 0 15px 0; color: #2c3e50; font-size: 24px; }
+
+        /* --- ХАРАКТЕРИСТИКИ (ДЕСКТОП) --- */
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-row:last-child { border-bottom: none; margin-bottom: 0; }
+        
+        .info-label {
+            width: 100px; /* Жесткая ширина колонки с названиями */
+            text-align: right;
+            color: #7f8c8d;
+            font-weight: 600;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        .info-value {
+            flex-grow: 1;
+            color: #333;
+            word-break: break-word; /* Перенос длинных строк (нот) */
+            overflow-wrap: break-word;
+        }
+        .notes-text { color: #555; font-style: italic; }
+
+        /* --- АДАПТИВНОСТЬ (ТЕЛЕФОН) --- */
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            
+            /* Карточка становится вертикальной */
+            .perfume-card {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .card-img-wrapper { width: 160px; height: 160px; }
+
+            /* Характеристики на телефоне: лейбл над значением, по центру */
+            .info-row {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                width: 100%;
+            }
+            .info-label {
+                width: auto;
+                text-align: left;
+                margin-right: 0;
+                margin-bottom: 5px;
+            }
+            .info-value { text-align: center; }
+            
+            /* Кнопки друг под другом */
+            .action-buttons { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>👃 Подбор аромата</h1>
+
+    <div class="filters-grid">
+        <div class="filter-group">
+            <label for="genderSelect">Пол</label>
+            <select id="genderSelect">
+                <option value="">--- Любой ---</option>
+                <option value="women">Женский (Women + Unisex)</option>
+                <option value="men">Мужской (Men + Unisex)</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="groupInput">Группа ароматов</label>
+            <input type="text" id="groupInput" placeholder="Например: цветочные">
+        </div>
+        <div class="filter-group">
+            <label for="notesInput">Ноты (через запятую)</label>
+            <input type="text" id="notesInput" placeholder="Например: роза, жасмин">
+        </div>
+    </div>
+
+    <div class="action-buttons">
+        <button class="btn-search" onclick="searchPerfumes()">🔍 Найти ароматы</button>
+        <button class="btn-reset" onclick="resetSearch()">🔄 Сбросить</button>
+    </div>
+
+    <div class="results-area" id="resultsArea">
+        <p style="text-align:center; color:#aaa;">Загрузка данных...</p>
+    </div>
+</div>
+
+<script>
+    let allPerfumes = [];
+
+    async function loadData() {
+        const resultsArea = document.getElementById('resultsArea');
+        try {
+            // Пытаемся загрузить data.json
+            const response = await fetch('data.json');
+            if (!response.ok) throw new Error('Network response was not ok');
+            allPerfumes = await response.json();
+            resultsArea.innerHTML = '<p style="text-align:center; color:#555;">Данные загружены. Введите параметры для поиска.</p>';
+        } catch (error) {
+            console.error('Ошибка:', error);
+            resultsArea.innerHTML = `
+                <div style="text-align:center; padding:20px; color:#e74c3c; background:#fff0f0; border-radius:8px;">
+                    <b>⚠️ Ошибка загрузки data.json</b><br>
+                    Проверьте, лежит ли файл рядом с index.html и открыт ли сайт через сервер (Live Server).
+                </div>`;
+        }
+    }
+
+    function searchPerfumes() {
+        if (allPerfumes.length === 0) {
+            alert('Сначала загрузите данные из data.json!');
+            return;
+        }
+
+        const genderVal = document.getElementById('genderSelect').value;
+        const groupVal = document.getElementById('groupInput').value.toLowerCase().trim();
+        const notesVal = document.getElementById('notesInput').value.toLowerCase().trim();
+        const resultsArea = document.getElementById('resultsArea');
+
+        resultsArea.innerHTML = '<p style="text-align:center; color:#555;">Ищем варианты...</p>';
+
+        let filtered = [...allPerfumes];
+
+        if (genderVal) {
+            const allowedGenders = [];
+            if (genderVal === 'women') allowedGenders.push('women', 'unisex');
+            if (genderVal === 'men') allowedGenders.push('men', 'unisex');
+            filtered = filtered.filter(p => allowedGenders.includes(p.gender.toLowerCase()));
+        }
+
+        if (groupVal) {
+            filtered = filtered.filter(p => p.group.toLowerCase().includes(groupVal));
+        }
+
+        if (notesVal) {
+            const userNotes = notesVal.split(',').map(n => n.trim());
+            filtered = filtered.filter(p => {
+                const allNotes = p.notes.toLowerCase();
+                return userNotes.some(note => allNotes.includes(note));
+            });
+        }
+
+        renderResults(filtered);
+    }
+
+    function renderResults(data) {
+        const resultsArea = document.getElementById('resultsArea');
+
+        if (data.length === 0) {
+            resultsArea.innerHTML = '<div style="text-align:center; padding:40px; color:#999; background:#f9f9f9; border-radius:8px;">Ничего не найдено. Попробуйте другие фильтры.</div>';
+            return;
+        }
+
+        let html = `<h2 style="text-align:center; color:#7f8c8d; margin-bottom:20px;">Найдено ароматов: ${data.length}</h2>`;
+
+        data.forEach(p => {
+            html += `
+            <div class="perfume-card">
+                <div class="card-img-wrapper">
+                    ${p.image ? `<img src="${p.image}" alt="${p.name}" class="card-img">` : '<div style="color:#999;">Нет фото</div>'}
+                </div>
+                <div class="perfume-info">
+                    <h3>${p.name}</h3>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Артикул:</span>
+                        <span class="info-value">${p.article || '-'}</span>
+                    </div>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Группа:</span>
+                        <span class="info-value">${p.group || '-'}</span>
+                    </div>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Ноты:</span>
+                        <span class="info-value notes-text">${p.notes || '-'}</span>
+                    </div>
+                    
+                    <div class="info-row">
+                        <span class="info-label">Пол:</span>
+                        <span class="info-value">${p.gender || '-'}</span>
+                    </div>
+                </div>
+            </div>`;
+        });
+
+        resultsArea.innerHTML = html;
+    }
+
+    function resetSearch() {
+        document.getElementById('genderSelect').value = '';
+        document.getElementById('groupInput').value = '';
+        document.getElementById('notesInput').value = '';
+        document.getElementById('resultsArea').innerHTML = '<p style="text-align:center; color:#555;">Введите параметры для поиска.</p>';
+    }
+
+    loadData();
+</script>
+
+</body>
+</html>
